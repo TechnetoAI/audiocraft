@@ -12,9 +12,9 @@ defaults:
 autocast: true
 autocast_dtype: float16
 
-# EnCodec large trained on mono-channel music audio sampled at 32khz
+# AGC large trained on stereo-channel music audio sampled at 48khz
 # with a total stride of 640 leading to 50 frames/s.
-# rvq.n_q=4, rvq.bins=2048, no quantization dropout
+# rvq.n_q=24, rvq.bins=2048, no quantization dropout
 # (transformer_lm card and n_q must be compatible)
 compression_model_checkpoint: //pretrained/agc-discrete
 

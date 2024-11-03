@@ -356,7 +356,7 @@ class AGC(CompressionModel):
 
     @property
     def channels(self) -> int:
-        return 1
+        return 2
 
     @property
     def frame_rate(self) -> float:
