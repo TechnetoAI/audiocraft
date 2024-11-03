@@ -108,6 +108,9 @@ class CompressionModel(ABC, nn.Module):
             model_type = name.split('_')[1]
             logger.info("Getting pretrained compression model from DAC %s", model_type)
             model = DAC(model_type)
+        elif name in ['agc-discrete']:
+            logger.info("Getting pretrained compression model from AGC")
+            model = AGC(name)
         elif name in ['debug_compression_model']:
             logger.info("Getting pretrained compression model for debug")
             model = builders.get_debug_compression_model()
@@ -318,6 +321,70 @@ class DAC(CompressionModel):
         assert n >= 1
         assert n <= self.total_codebooks
         self.n_quantizers = n
+        
+
+
+class AGC(CompressionModel):
+    def __init__(self, model_type: str = "agc-discrete"):
+        super().__init__()
+        try:
+            from agc import AGC
+        except ImportError:
+            raise RuntimeError("Could not import agc, make sure it is installed, "
+                               "please run `pip install audiogen-agc")
+            
+        self.model = AGC.from_pretrained(f"AudioGen/{model_type}")
+        self.n_quantizers = self.model.config.num_codebooks
+        self.model.eval()
+
+    def forward(self, x: torch.Tensor) -> qt.QuantizedResult:
+        # We don't support training with this.
+        raise NotImplementedError("Forward and training with DAC not supported.")
+
+    def encode(self, x: torch.Tensor) -> tp.Tuple[torch.Tensor, tp.Optional[torch.Tensor]]:
+        codes = self.model.encode(x)
+        return codes[:, :self.n_quantizers], None
+
+    def decode(self, codes: torch.Tensor, scale: tp.Optional[torch.Tensor] = None):
+        assert scale is None
+        # z_q = self.decode_latent(codes)
+        return self.model.decode(codes)
+
+    def decode_latent(self, codes: torch.Tensor):
+        """Decode from the discrete codes to continuous latent space."""
+        return self.model.quantizer.from_codes(codes)[0]
+
+    @property
+    def channels(self) -> int:
+        return 1
+
+    @property
+    def frame_rate(self) -> float:
+        return self.model.sample_rate / self.model.hop_length
+
+    @property
+    def sample_rate(self) -> int:
+        return self.model.sample_rate
+
+    @property
+    def cardinality(self) -> int:
+        return self.model.config.codebook_size
+
+    @property
+    def num_codebooks(self) -> int:
+        return self.n_quantizers
+
+    @property
+    def total_codebooks(self) -> int:
+        return self.model.config.n_codebooks
+
+    def set_num_codebooks(self, n: int):
+        """Set the active number of codebooks used by the quantizer.
+        """
+        assert n >= 1
+        assert n <= self.total_codebooks
+        self.n_quantizers = n
+    
 
 
 class HFEncodecCompressionModel(CompressionModel):
